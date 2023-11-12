@@ -1,0 +1,126 @@
+blueprint:
+  name: "AWTRIX Calendar Pixel Notifier"
+  description:
+    "This blueprint will print notification when calendar event happens. 
+
+     [Google calendar integration](https://www.home-assistant.io/integrations/google) was used for initial testing. Other calendars might work too.
+      
+     Pixel is light on with configured color from configurable amount of hours before event start.
+
+     Inspired by awesome work of Brunas
+     Inspired by awesome work of Jeeftor
+    "
+
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX Device
+      description: Select the Awtrix light
+      selector:
+        device:
+          integration: mqtt
+          manufacturer: Blueforcer
+          model: AWTRIX Light
+          multiple: true
+    app_name:
+      name: Awtrix Application name
+      description: This is the app name listed in the MQTT topic - it should be unique
+      selector:
+        text: {}
+      default: calendar_pixel_notifier
+    calendar:
+      name: Calendar with schedule
+      description: A calendar with schedule
+      selector:
+        entity:
+          multiple: false
+    message_attr_name:
+      name: Name of calendar event message attribute
+      description: This is the name of calendar event message attribute
+      selector:
+        text: {}
+      default: message
+    start_time_attr_name:
+      name: Name of calendar event start time attribute
+      description: This is the name of calendar event start time attribute
+      selector:
+        text: {}
+      default: start_time
+    hours_before:
+      name: Number of Hours before Event
+      description: Number of hours to start notify before actual event
+      selector:
+        number:
+          max: 96.0
+          min: 0.0
+          unit_of_measurement: hours
+          mode: box
+          step: 1.0
+      default: 24
+    indicator_position:
+      name: Which indicator
+      description: Choose top/middle/bottom indicator.
+      selector:
+        select:
+          options:
+            - label: Top
+              value: '1'
+            - label: Middle
+              value: '2'
+            - label: Bottom
+              value: '3'
+      default: '2'
+    color_map:
+      name: An event message-to-color name map
+      description: An event message-to-color name map in JSON format
+      selector:
+        text: 
+          multiline: true
+      default: "{\"green bin\":\"#0000FF\",\"blue bin\":\"#0000FF\"}"
+    lifetime:
+      name: Lifetime of the app (in seconds)
+      description: Removes the custom app when there is no update after the given time in seconds. Keep this value higher than 59 seconds to get the AWTRIX app automatically deleted when disabling the automation.
+      default: "70"
+  source_url: https://raw.githubusercontent.com/ka2er/flows-blueforcer-hass/master/calendar-pixel-notifier/awtrix_calendar_pixel_notifier.yaml
+  
+mode: single
+
+variables:
+  indicator_position: !input indicator_position
+  device_ids: !input awtrix
+  app_name: !input app_name
+  devices_topics:
+    "{%- macro get_device_topic(device_id) %} {{- states((device_entities(device_id)
+    | select('search','device_topic') | list)[0]) }} {%- endmacro %}\n{%- set ns =
+    namespace(devices=[]) %} {%- for device_id in device_ids %}\n  {%- set device=get_device_topic(device_id)|replace('
+    ','') %}\n  {% set ns.devices = ns.devices + [ device ~ '/indicator' ~ indicator_position ]
+    %}\n{%- endfor %} {{ ns.devices | reject('match','unavailable') | list}}"
+  calendar: !input calendar
+  message_attr_name: !input message_attr_name
+  start_time_attr_name: !input start_time_attr_name
+  hours_before: !input hours_before
+  color_map: !input color_map
+  color: "{%- set color_map_json = color_map|from_json %} {{color_map_json[state_attr(calendar,message_attr_name)]}}"
+  lifetime: !input lifetime
+  payload_internal: 
+    "{\"color\":\"{{color}}\"}"
+  payload:
+    '{{ iif(now() >= state_attr(calendar,start_time_attr_name)| as_datetime | default(now(), true)|as_local
+    - timedelta(hours = hours_before), payload_internal, "{}") }}'
+    
+trigger:
+  - platform: time_pattern
+    minutes: /1
+    
+condition: []
+
+action:
+  - repeat:
+      for_each: "{{ devices_topics }}"
+      sequence:
+        - service: mqtt.publish
+          data:
+            qos: 0
+            retain: false
+            topic: "{{ repeat.item }}"
+            payload: "{{payload}}"

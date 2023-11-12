@@ -5,7 +5,7 @@ blueprint:
 
      [Google calendar integration](https://www.home-assistant.io/integrations/google) was used for initial testing. Other calendars might work too.
       
-     Pixel is light on with configured color from configurable amount of hours before event start.
+     Pixel is lighted on with configured color from configurable amount of hours before event start.
 
      Inspired by awesome work of Brunas
      Inspired by awesome work of Jeeftor
@@ -81,7 +81,7 @@ blueprint:
       name: Lifetime of the app (in seconds)
       description: Removes the custom app when there is no update after the given time in seconds. Keep this value higher than 59 seconds to get the AWTRIX app automatically deleted when disabling the automation.
       default: "70"
-  source_url: https://raw.githubusercontent.com/ka2er/flows-blueforcer-hass/master/calendar-pixel-notifier/awtrix_calendar_pixel_notifier.yaml
+  source_url: https://raw.githubusercontent.com/ka2er/flows-blueforcer-hass/main/calendar-pixel-notifier/awtrix_calendar_pixel_notifier.yaml
   
 mode: single
 

@@ -1,0 +1,95 @@
+---
+blueprint:
+  name: AWTRIX Temperature Monitor
+  description: >
+    This blueprint will show the current temperature.
+    Icons change based on temperature.
+    
+    It uses icons #19654, #19655 and #19656 that you need to install.
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX Device
+      description: Select the Awtrix light device
+      selector:
+        device:
+          integration: mqtt
+          manufacturer: Blueforcer
+          model: AWTRIX Light
+          multiple: true
+    temperature_source:
+      name: Temperature Sensor
+      description: A sensor providing the current temperature.
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+          multiple: false
+    threshold_high:
+      name: Threshold for high temperature (C)
+      description: The threshold above which the temperature should be visualized as high. Input in Degre (C).
+      selector:
+        number:
+          min: 0
+          max: 50
+          unit_of_measurement: Degree
+          mode: slider
+      default: 15
+    threshold_low:
+      name: Threshold for low temperature (C)
+      description: The threshold below which the temperature should be visualized as low. Input in Degre (C).
+      selector:
+        number:
+          min: 0
+          max: 50
+          unit_of_measurement: Degree
+          mode: slider
+      default: 5
+mode: single
+variables:
+  device_ids: !input awtrix
+  devices_topics: >-
+    {%- macro get_device_topic(device_id) %}
+    {{ states((device_entities(device_id) | select('search','device_topic') | list)[0]) }}
+    {%- endmacro %}
+    
+    {%- set ns = namespace(devices=[]) %}
+    {%- for device_id in device_ids %}
+      {%- set device=get_device_topic(device_id)|replace(' ','') %}
+      {% set ns.devices = ns.devices + [ device ~ '/custom/temperature'] %}
+    {%- endfor %}
+    {{ ns.devices }}
+  temperature_sensor: !input temperature_source
+  temperature_level: >-
+    {{ states[temperature_sensor].state }}
+  threshold_low: !input threshold_low
+  threshold_high: !input threshold_high
+  temperature_level_icon: >-
+    {%- if temperature_level > threshold_high %}{{19656}}{%- endif %}
+    {%- if (temperature_level <= threshold_high) and (temperature_level > threshold_low) %}{{19655}}{%- endif %}
+    {%- if temperature_level <= threshold_low %}{{19654}}{%- endif %}
+  temperature_level_color: >-
+    {%- if temperature_level > threshold_high %}{{"#04FE04"}}{%- endif %}
+    {%- if (temperature_level <= threshold_high) and (temperature_level > threshold_low) %}{{"#FCFEFC"}}{%- endif %}
+    {%- if temperature_level <= threshold_low %}{{"#FF4E1A"}}{%- endif %}
+  temperature_level_text: >-
+    {{ temperature_level | round(1) }} C
+  payload: >-
+    {"icon":"{{ temperature_level_icon }}", "text": "{{ temperature_level_text }}",  "color": "{{ temperature_level_color }}"}
+
+trigger:
+  - platform: time_pattern
+    minutes: "/1"
+
+condition:
+action:
+  - repeat: 
+      for_each: "{{ devices_topics }}"
+      sequence:
+        - service: mqtt.publish
+          data:
+            qos: 0
+            retain: false
+            topic: "{{ repeat.item }}"
+            payload: >
+              {{ payload }}

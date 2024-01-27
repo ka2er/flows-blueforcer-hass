@@ -1,0 +1,64 @@
+---
+blueprint:
+  name: AWTRIX Debug Monitor
+  description: >
+    This blueprint will show message.
+  domain: automation
+ 
+  input:
+    awtrix:
+      name: AWTRIX Device
+      description: Select the Awtrix light device
+      selector:
+        device:
+          integration: mqtt
+          manufacturer: Blueforcer
+          model: AWTRIX Light
+          multiple: true
+    msg_source:
+      name: Message
+      description: A sensor providing the message.
+      selector:
+        entity:
+          domain: sensor
+          multiple: true
+mode: single
+variables:
+  device_ids: !input awtrix
+  devices_topics: >-
+    {%- macro get_device_topic(device_id) %}
+    {{ states((device_entities(device_id) | select('search','device_topic') | list)[0]) }}
+    {%- endmacro %}
+    
+    {%- set ns = namespace(devices=[]) %}
+    {%- for device_id in device_ids %}
+      {%- set device=get_device_topic(device_id)|replace(' ','') %}
+      {% set ns.devices = ns.devices + [ device ~ '/custom/debug'] %}
+    {%- endfor %}
+    {{ ns.devices }}
+  msg_sensors: !input msg_source
+  msg_txt: >-
+    {%- set ns = namespace(c = '') %}
+    {%- for sensor_id in msg_sensors %}
+        {%- set ns.c = ns.c + states(sensor_id, rounded=True, with_unit=True) + " " %}
+    {%- endfor %}
+    {{ ns.c }}
+  payload: >-
+    {"text": "{{ msg_txt }}"}
+
+trigger:
+  - platform: time_pattern
+    minutes: "/1"
+
+condition:
+action:
+  - repeat: 
+      for_each: "{{ devices_topics }}"
+      sequence:
+        - service: mqtt.publish
+          data:
+            qos: 0
+            retain: false
+            topic: "{{ repeat.item }}"
+            payload: >
+              {{ payload }}

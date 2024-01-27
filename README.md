@@ -15,3 +15,7 @@ Indicate current temperature. Icon set color change based on temperature levels.
 
 Indicate current solar power production only if production occurs.
 Icons and text color change based on power level.
+
+## Debug
+
+Debug blueprint to print any sensors and corresponding unit
